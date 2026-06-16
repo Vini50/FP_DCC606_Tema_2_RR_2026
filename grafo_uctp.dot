@@ -1,0 +1,17 @@
+graph UCTP {
+    node [style=filled, fontname="Arial"];
+
+    // Definicao dos Vertices (Turmas e Slots)
+    0 [label="Turma 0\nSlot 0", fillcolor="#38bdf8"];
+    1 [label="Turma 1\nSlot 1", fillcolor="#10b981"];
+    2 [label="Turma 2\nSlot 1", fillcolor="#10b981"];
+    3 [label="Turma 3\nSlot 0", fillcolor="#38bdf8"];
+    4 [label="Turma 4\nSlot 1", fillcolor="#10b981"];
+
+    // Definicao das Arestas (Conflitos)
+    0 -- 1 [color="#94a3b8"];
+    0 -- 2 [color="#94a3b8"];
+    1 -- 3 [color="#94a3b8"];
+    2 -- 3 [color="#94a3b8"];
+    3 -- 4 [color="#94a3b8"];
+}

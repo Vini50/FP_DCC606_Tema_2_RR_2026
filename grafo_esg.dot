@@ -1,0 +1,15 @@
+graph UCTP {
+    node [style=filled, fontname="Arial"];
+
+    0 [label="Turma 0\nSlot 2\nProf 0", fillcolor="#fbbf24"];
+    1 [label="Turma 1\nSlot 1\nProf 1", fillcolor="#10b981"];
+    2 [label="Turma 2\nSlot 1\nProf 1", fillcolor="#10b981"];
+    3 [label="Turma 3\nSlot 0\nProf 0", fillcolor="#38bdf8"];
+    4 [label="Turma 4\nSlot 2\nProf 0", fillcolor="#fbbf24"];
+
+    0 -- 1 [color="#94a3b8"];
+    0 -- 2 [color="#94a3b8"];
+    1 -- 3 [color="#94a3b8"];
+    2 -- 3 [color="#94a3b8"];
+    3 -- 4 [color="#94a3b8"];
+}
