@@ -2,5 +2,6 @@
 
 Comandos para rodar: 
 
-gcc grafo.c -o grafo.exe;
+gcc grafo.c -o grafo.exe
+
 .\grafo.exe 
