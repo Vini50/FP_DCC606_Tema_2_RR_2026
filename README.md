@@ -1,5 +1,6 @@
 # FP_DCC606_Tema_2_RR_2026
 
-Comandos para rodar.
+Comandos para rodar: 
+
 gcc grafo.c -o grafo.exe;
 .\grafo.exe 
