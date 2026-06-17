@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <stdbool.h>
 #include <time.h>
+#include <math.h>
 
 // ==========================================
 // 1. ESTRUTURA DO GRAFO (UCTP + ESG/MTZ)
@@ -147,16 +148,34 @@ void exportar_graphviz(Grafo *g, const char *nome_arquivo) {
 // ==========================================
 int calcular_custo_total_esg(Grafo *g, int num_professores) {
     int custo_total = 0;
+    int penalidade_ociosidade = 100; // Penalidade por cada slot vago (buraco na grade)
+
+    // Encontra o número máximo de slots usados para otimizar o laço temporal
+    int max_slot = 0;
+    for (int i = 0; i < g->num_vertices; i++) {
+        if (g->cor[i] > max_slot) max_slot = g->cor[i];
+    }
+
     for (int p = 0; p < num_professores; p++) {
         int sala_anterior = -1;
+        int slot_anterior = -1;
+
         // Ordem cronológica atua como a variável u_i do MTZ, evitando subciclos
-        for (int slot = 0; slot <= g->num_vertices; slot++) {
+        for (int slot = 0; slot <= max_slot; slot++) {
             for (int v = 0; v < g->num_vertices; v++) {
                 if (g->id_professor[v] == p && g->cor[v] == slot) {
                     if (sala_anterior != -1) {
+                        // 1. Soft Constraint: Distância Geográfica
                         custo_total += g->matriz_dist[sala_anterior][v];
+                        
+                        // 2. Soft Constraint: Minimização de Janelas Ociosas
+                        int janelas_vazias = slot - slot_anterior - 1;
+                        if (janelas_vazias > 0) {
+                            custo_total += (janelas_vazias * penalidade_ociosidade);
+                        }
                     }
                     sala_anterior = v;
+                    slot_anterior = slot;
                 }
             }
         }
@@ -166,54 +185,74 @@ int calcular_custo_total_esg(Grafo *g, int num_professores) {
 
 void otimizar_rotas_metaheuristica(Grafo *g, int num_professores) {
     int custo_atual = calcular_custo_total_esg(g, num_professores);
-    printf("\n[Meta-heuristica] Iniciando Busca Local Estocastica. Custo inicial: %d m\n", custo_atual);
-
-    // Inicializa a semente de aleatoriedade (Estocástica)
+    int melhor_custo = custo_atual;
+    printf("\n[Meta-heuristica] Iniciando Simulated Annealing. Custo inicial: %d\n", custo_atual);
+    
     srand(time(NULL)); 
     
-    int iteracoes_maximas = 5000; // Critério de parada da Meta-heurística
-    int iteracoes_sem_melhora = 0;
+    // Parâmetros do Simulated Annealing
+    double temperatura = 1000.0;
+    double taxa_resfriamento = 0.995;
+    double temp_minima = 0.001;
+    int iteracoes_na_temperatura = 100;
+    
+    // Vetor para armazenar a melhor solução global encontrada
+    int *melhor_cor = (int*) malloc(g->num_vertices * sizeof(int));
+    for (int i = 0; i < g->num_vertices; i++) melhor_cor[i] = g->cor[i];
 
-    while (iteracoes_sem_melhora < iteracoes_maximas) {
-        // Sorteia um vértice (turma) aleatório e uma nova cor aleatória
-        int v_random = rand() % g->num_vertices;
-        int cor_original = g->cor[v_random];
-        int nova_cor = rand() % g->num_vertices; 
-        
-        if (nova_cor == cor_original) {
-            iteracoes_sem_melhora++;
-            continue;
-        }
+    while (temperatura > temp_minima) {
+        for (int iter = 0; iter < iteracoes_na_temperatura; iter++) {
+            int v_random = rand() % g->num_vertices;
+            int cor_original = g->cor[v_random];
+            
+            // Descobre max_cor dinamicamente para tentar cores viáveis ou apenas UMA nova cor
+            int max_cor = 0;
+            for (int i = 0; i < g->num_vertices; i++) {
+                if (g->cor[i] > max_cor) max_cor = g->cor[i];
+            }
+            int nova_cor = rand() % (max_cor + 2); 
+            
+            if (nova_cor == cor_original) continue;
 
-        // 1. Verifica se a nova cor viola as Hard Constraints
-        bool conflito = false;
-        for (int i = 0; i < g->num_vertices; i++) {
-            if (g->matriz_adj[v_random][i] && g->cor[i] == nova_cor) {
-                conflito = true;
-                break;
+            // 1. Verifica Violação de Hard Constraints (Conflitos)
+            bool conflito = false;
+            for (int i = 0; i < g->num_vertices; i++) {
+                if (g->matriz_adj[v_random][i] && g->cor[i] == nova_cor) {
+                    conflito = true;
+                    break;
+                }
+            }
+
+            // 2. Avaliação de Impacto e Critério de Metropolis
+            if (!conflito) {
+                g->cor[v_random] = nova_cor;
+                int novo_custo = calcular_custo_total_esg(g, num_professores);
+                int delta = novo_custo - custo_atual;
+
+                // Aceita se for melhor (delta < 0) OU pela probabilidade termodinâmica
+                if (delta < 0 || ((double)rand() / RAND_MAX) < exp(-delta / temperatura)) {
+                    custo_atual = novo_custo; 
+                    
+                    // Atualiza a melhor solução global
+                    if (custo_atual < melhor_custo) {
+                        melhor_custo = custo_atual;
+                        for (int i = 0; i < g->num_vertices; i++) melhor_cor[i] = g->cor[i];
+                    }
+                } else {
+                    // Desfaz a troca se rejeitada
+                    g->cor[v_random] = cor_original;
+                }
             }
         }
-
-        // 2. Se for válida, avalia o impacto na Soft Constraint (MTZ / ESG)
-        if (!conflito) {
-            g->cor[v_random] = nova_cor;
-            int novo_custo = calcular_custo_total_esg(g, num_professores);
-
-            // 3. Critério de Aceitação da Busca Local
-            if (novo_custo < custo_atual) {
-                custo_atual = novo_custo;
-                iteracoes_sem_melhora = 0; // Zeramos o contador pois achamos uma melhora!
-            } else {
-                // Desfaz a troca se não for melhor
-                g->cor[v_random] = cor_original;
-                iteracoes_sem_melhora++;
-            }
-        } else {
-            iteracoes_sem_melhora++;
-        }
+        // Reduz a temperatura
+        temperatura *= taxa_resfriamento;
     }
     
-    printf("[Meta-heuristica] Otimizacao concluida. Custo final reduzido: %d m\n\n", custo_atual);
+    // Restaura o grafo para a melhor configuração global encontrada no processo
+    for (int i = 0; i < g->num_vertices; i++) g->cor[i] = melhor_cor[i];
+    free(melhor_cor);
+    
+    printf("[Meta-heuristica] Otimizacao concluida. Custo final reduzido: %d\n\n", melhor_custo);
 }
 
 // ==========================================
@@ -225,7 +264,8 @@ int auditar_violacoes(Grafo *g) {
     int violacoes = 0;
     for (int i = 0; i < g->num_vertices; i++) {
         for (int j = i + 1; j < g->num_vertices; j++) {
-            if (g->matriz_adj[i][j] && g->cor[i] == g->cor[j]) {
+            // Verifica conflito de grade OU conflito de professor no mesmo slot
+            if ((g->matriz_adj[i][j] || g->id_professor[i] == g->id_professor[j]) && g->cor[i] == g->cor[j]) {
                 violacoes++;
             }
         }
@@ -244,33 +284,65 @@ int contar_slots_utilizados(Grafo *g) {
     return max_cor + 1; // +1 porque as cores começam em 0
 }
 
+Grafo* ler_grafo_arquivo(const char *nome_arquivo, int *num_professores_out) {
+    FILE *arquivo = fopen(nome_arquivo, "r");
+    if (!arquivo) {
+        printf("Erro ao abrir o arquivo de instancia: %s\n", nome_arquivo);
+        exit(1);
+    }
+
+    int num_vertices, num_professores;
+    fscanf(arquivo, "%d %d", &num_vertices, &num_professores);
+    *num_professores_out = num_professores;
+
+    Grafo *g = criar_grafo(num_vertices);
+
+    // 1. Ler o mapeamento de Turma -> Professor
+    for (int i = 0; i < num_vertices; i++) {
+        fscanf(arquivo, "%d", &g->id_professor[i]);
+    }
+
+    // Aplicação Automática da Invariância de Alocação de Pessoal
+    for (int i = 0; i < num_vertices; i++) {
+        for (int j = i + 1; j < num_vertices; j++) {
+            if (g->id_professor[i] == g->id_professor[j]) {
+                adicionar_conflito(g, i, j);
+            }
+        }
+    }
+
+    // 2. Ler Hard Constraints Curriculares
+    int num_conflitos;
+    fscanf(arquivo, "%d", &num_conflitos);
+    for (int i = 0; i < num_conflitos; i++) {
+        int u, v;
+        fscanf(arquivo, "%d %d", &u, &v);
+        adicionar_conflito(g, u, v);
+    }
+
+    // 3. Ler Soft Constraints Geográficas
+    int num_distancias;
+    fscanf(arquivo, "%d", &num_distancias);
+    for (int i = 0; i < num_distancias; i++) {
+        int u, v, dist;
+        fscanf(arquivo, "%d %d %d", &u, &v, &dist);
+        adicionar_distancia(g, u, v, dist);
+    }
+
+    fclose(arquivo);
+    return g;
+}
+
 // ==========================================
 // 5. FUNÇÃO PRINCIPAL
 // ==========================================
 int main() {
-    int V = 5;
-    Grafo *meu_grafo = criar_grafo(V);
+    int total_professores;
     
-    // Configurando os Professores
-    meu_grafo->id_professor[0] = 0;
-    meu_grafo->id_professor[3] = 0;
-    meu_grafo->id_professor[4] = 0;
-    
-    meu_grafo->id_professor[1] = 1;
-    meu_grafo->id_professor[2] = 1;
-    
-    // Conflitos de Horário (Hard Constraints)
-    adicionar_conflito(meu_grafo, 0, 1);
-    adicionar_conflito(meu_grafo, 0, 2);
-    adicionar_conflito(meu_grafo, 1, 3);
-    adicionar_conflito(meu_grafo, 2, 3);
-    adicionar_conflito(meu_grafo, 3, 4);
-    
-    // Distâncias (Soft Constraints / MTZ)
-    adicionar_distancia(meu_grafo, 0, 3, 500); 
-    adicionar_distancia(meu_grafo, 3, 4, 800); 
-    adicionar_distancia(meu_grafo, 0, 4, 100); 
-    adicionar_distancia(meu_grafo, 1, 2, 300);
+    // 1. CARREGAMENTO DO CASO DE TESTE (AMPLIAÇÃO)
+    // O arquivo "instancia.txt" deve estar na mesma pasta do executável
+    Grafo *meu_grafo = ler_grafo_arquivo("instancia.txt", &total_professores);
+    int V = meu_grafo->num_vertices;
     
     printf("--- 1. SOLUCAO INICIAL (DSATUR) ---\n");
     colorir_dsatur(meu_grafo);
@@ -278,28 +350,32 @@ int main() {
         printf("Turma %d (Prof %d) alocada no Slot: %d\n", i, meu_grafo->id_professor[i], meu_grafo->cor[i]);
     }
     
-    // Otimizando Rotas com Medição de Tempo (Benchmark)
-    int total_professores = 2;
+    // Registra o custo ANTES da meta-heurística para o relatório
+    int custo_inicial = calcular_custo_total_esg(meu_grafo, total_professores);
     
-    clock_t inicio = clock(); // Inicia o cronômetro
+    // 2. OTIMIZAÇÃO COM SIMULATED ANNEALING
+    clock_t inicio = clock();
     otimizar_rotas_metaheuristica(meu_grafo, total_professores);
-    clock_t fim = clock();    // Para o cronômetro
+    clock_t fim = clock();
     
-    // Converte os "ticks" do processador para milissegundos
     double tempo_gasto = (double)(fim - inicio) / CLOCKS_PER_SEC * 1000.0;
     
-    printf("--- 2. SOLUCAO OTIMIZADA (ESG) ---\n");
+    printf("\n--- 2. SOLUCAO OTIMIZADA (ESG) ---\n");
     for (int i = 0; i < V; i++) {
         printf("Turma %d (Prof %d) alocada no Slot: %d\n", i, meu_grafo->id_professor[i], meu_grafo->cor[i]);
     }
     
     printf("\n[Benchmark] Tempo de otimizacao: %.2f ms\n", tempo_gasto);
-    // --- RELATÓRIO FINAL DE MÉTRICAS ---
+
+    // 3. RELATÓRIO FINAL DE MÉTRICAS
     int slots_usados = contar_slots_utilizados(meu_grafo);
     int violacoes = auditar_violacoes(meu_grafo);
-    int custo_inicial = 1600; // O custo antes da meta-heurística
     int custo_final = calcular_custo_total_esg(meu_grafo, total_professores);
-    double reducao_ociosidade = ((double)(custo_inicial - custo_final) / custo_inicial) * 100.0;
+    
+    double reducao_ociosidade = 0.0;
+    if (custo_inicial > 0) {
+        reducao_ociosidade = ((double)(custo_inicial - custo_final) / custo_inicial) * 100.0;
+    }
 
     printf("\n======================================================\n");
     printf("   RELATORIO DE METRICAS (VALIDACAO UCTP/ESG) \n");
@@ -311,7 +387,6 @@ int main() {
     printf("======================================================\n");
     
     exportar_graphviz(meu_grafo, "grafo_esg.dot");
-    
     liberar_grafo(meu_grafo);
     return 0;
 }
