@@ -30,6 +30,7 @@ gcc grafo.c -o grafo.exe
 📂 Formato do Arquivo de Instância (.txt)
 
 O algoritmo realiza a leitura das malhas curriculares a partir de arquivos de texto (ex: instancia.txt), que devem estar rigorosamente estruturados da seguinte forma:
+
 Plaintext
 
 <Qtd_Turmas> <Qtd_Professores>
