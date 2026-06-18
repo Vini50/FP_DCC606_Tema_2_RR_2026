@@ -157,3 +157,7 @@ Durante a execução, o terminal exibe a solução inicial (DSATUR), a solução
 > **Observação:** o Simulated Annealing é estocástico (usa `srand(time(NULL))`), portanto o custo final, o tempo e a imagem do grafo podem variar levemente entre execuções. A **conformidade rígida**, no entanto, permanece sempre em 0 violações.
 
 ---
+
+## 📌 Repositório
+
+<https://github.com/Vini50/FP_DCC606_Tema_2_RR_2026>
