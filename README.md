@@ -158,6 +158,3 @@ Durante a execução, o terminal exibe a solução inicial (DSATUR), a solução
 
 ---
 
-## 📌 Repositório
-
-<https://github.com/Vini50/FP_DCC606_Tema_2_RR_2026>
