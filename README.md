@@ -33,12 +33,19 @@ O algoritmo realiza a leitura das malhas curriculares a partir de arquivos de te
 Plaintext
 
 <Qtd_Turmas> <Qtd_Professores>
+
 <ID_Prof_Turma_0> <ID_Prof_Turma_1> ... <ID_Prof_Turma_N>
+
 <Qtd_Conflitos_Obrigatorios>
+
 <Turma_A> <Turma_B>
+
 ...
+
 <Qtd_Distancias_Prédios>
+
 <Turma_X> <Turma_Y> <Distancia_em_Metros>
+
 ...
 
 📊 Saídas e Métricas
